@@ -1,0 +1,51 @@
+# ===== Node / Vite =====
+node_modules/
+dist/
+*.local
+.vite/
+
+# ===== Rust / Tauri 构建产物 =====
+desktop-widget/src-tauri/target/
+desktop-widget/src-tauri/gen/schemas/
+
+# ===== 内置离线语音引擎资产（体积大，不入库）=====
+desktop-widget/src-tauri/resources/tts/
+
+# ===== 打包产物 =====
+*.msi
+*.exe
+*.zip
+*.tar.bz2
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# ===== 开发环境 =====
+.env
+.env.*
+!.env.example
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 日志 / 临时 =====
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# ===== 会话 / 工具运行时目录（本机专属，不入库）=====
+.box-agent/
+.box-agent-scratch/
+.workbuddy/
+
+# ===== 原型 / 预览截图（本地产物，不入库）=====
+preview/

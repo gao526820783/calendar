@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桌面便签小工具 · 主题原型（标签版）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --font: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    --bg: #eef1f6;
+    --card-bg: #ffffff;
+    --card-border: rgba(0,0,0,0.06);
+    --shadow: 0 8px 28px rgba(20,30,60,0.10);
+    --text-1: #1f2430;
+    --text-2: #5b6472;
+    --text-3: #97a0ad;
+    --accent: #3b82f6;
+    --accent-soft: rgba(59,130,246,0.12);
+    --radius: 20px;
+    --sky-1: #dfe9ff;
+    --sky-2: #f4f7ff;
+    --hero: 60px;
+  }
+
+  /* 天气主题 */
+  [data-weather="sunny"] { --sky-1:#ffe9c7; --sky-2:#fff7e8; --accent:#f59e0b; --accent-soft:rgba(245,158,11,0.14); }
+  [data-weather="cloudy"] { --sky-1:#d7dde6; --sky-2:#eef1f6; --accent:#64748b; --accent-soft:rgba(100,116,139,0.14); }
+  [data-weather="rain"] { --sky-1:#b9c7d6; --sky-2:#dbe3ec; --accent:#3b82f6; --accent-soft:rgba(59,130,246,0.14); }
+  [data-weather="snow"] { --sky-1:#dfeaf6; --sky-2:#f1f7fc; --accent:#38bdf8; --accent-soft:rgba(56,189,248,0.16); }
+  [data-weather="night"] {
+    --bg:#0f1729; --card-bg:#1b2438; --card-border:rgba(255,255,255,0.08);
+    --shadow:0 8px 28px rgba(0,0,0,0.45);
+    --text-1:#f1f5f9; --text-2:#b6c0d2; --text-3:#7c879b;
+    --sky-1:#24314f; --sky-2:#131c31; --accent:#a78bfa; --accent-soft:rgba(167,139,250,0.2);
+  }
+  /* 节日主题 */
+  [data-festival="spring"] { --accent:#e23b3b; --accent-soft:rgba(226,59,59,0.14); }
+  [data-festival="midautumn"] { --accent:#d98324; --accent-soft:rgba(217,131,36,0.16); }
+  [data-festival="national"] { --accent:#c81e2b; --accent-soft:rgba(200,30,43,0.14); }
+  [data-festival="christmas"] { --accent:#1f9d55; --accent-soft:rgba(31,157,85,0.16); }
+
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-1);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 28px 16px;
+    transition: background .5s ease; -webkit-font-smoothing: antialiased;
+  }
+
+  .demo-bar { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-bottom:18px; width:100%; max-width:340px; }
+  .demo-bar .grp { display:flex; align-items:center; gap:5px; }
+  .demo-bar .gl { font-size:11px; color:var(--text-3); }
+  .chip {
+    border:1px solid var(--card-border); background:var(--card-bg); color:var(--text-2);
+    padding:4px 9px; border-radius:999px; font-size:12px; cursor:pointer; transition:all .2s ease; font-family:var(--font);
+  }
+  .chip:hover { transform: translateY(-1px); }
+  .chip.active { background:var(--accent); color:#fff; border-color:transparent; box-shadow:0 3px 8px var(--accent-soft); }
+
+  /* ===== 桌面便签窗口 ===== */
+  .widget {
+    width: 340px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: background .5s ease, border-color .5s ease;
+    position: relative;
+  }
+  .fest-ribbon {
+    position:absolute; top:12px; right:14px; z-index:5;
+    font-size:11px; font-weight:700; color:var(--accent);
+    background:var(--accent-soft); border-radius:999px; padding:3px 10px; display:none;
+  }
+  [data-festival]:not([data-festival="none"]) .fest-ribbon { display:inline-block; }
+
+  /* 顶部标签栏 */
+  .tabs { display:flex; border-bottom:1px solid var(--card-border); }
+  .tab {
+    flex:1; text-align:center; padding:13px 0; font-size:14px; font-weight:600; color:var(--text-3);
+    cursor:pointer; position:relative; transition:color .2s ease; background:transparent; border:none; font-family:var(--font);
+  }
+  .tab:hover { color:var(--text-2); }
+  .tab.active { color:var(--accent); }
+  .tab.active::after {
+    content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:-1px;
+    width:34px; height:3px; border-radius:3px; background:var(--accent);
+  }
+
+  /* 面板 */
+  .panel { display:none; padding:18px 20px 20px; }
+  .panel.active { display:block; }
+
+  /* 天气面板 */
+  .weather-hero {
+    background: linear-gradient(140deg, var(--sky-1), var(--sky-2));
+    border-radius:14px; padding:16px 18px; margin:-2px -2px 14px;
+  }
+  .wt-top { display:flex; align-items:flex-start; justify-content:space-between; }
+  .wt-city .city { font-size:15px; font-weight:600; color:var(--text-1); display:flex; align-items:center; gap:5px; }
+  .wt-city .date { font-size:12px; color:var(--text-2); margin-top:2px; }
+  .wt-icon { width:60px; height:60px; }
+  .wt-main { display:flex; align-items:flex-end; gap:14px; margin:6px 0 4px; }
+  .wt-temp { font-size:var(--hero); font-weight:700; line-height:1; color:var(--text-1); }
+  .wt-desc { padding-bottom:7px; }
+  .wt-desc .cond { font-size:15px; font-weight:600; color:var(--text-1); }
+  .wt-desc .range { font-size:12px; color:var(--text-2); margin-top:3px; }
+  .wt-meta { display:flex; justify-content:space-between; border-top:1px solid var(--card-border); padding-top:12px; margin-top:2px; }
+  .meta-item .k { font-size:11px; color:var(--text-3); }
+  .meta-item .v { font-size:13px; font-weight:600; color:var(--text-1); margin-top:2px; }
+
+  /* 日历面板 */
+  .cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .cal-head .ym { font-size:15px; font-weight:700; color:var(--text-1); }
+  .cal-nav { display:flex; gap:5px; }
+  .nav-btn { width:26px;height:26px;border-radius:8px;border:1px solid var(--card-border);
+    background:transparent;color:var(--text-2);cursor:pointer;font-size:13px; display:flex;align-items:center;justify-content:center; font-family:var(--font);}
+  .nav-btn:hover{ background:var(--accent-soft); color:var(--accent);}
+  .cal-week, .cal-grid { display:grid; grid-template-columns: repeat(7,1fr); gap:4px; }
+  .cal-week div { text-align:center; font-size:11px; color:var(--text-3); padding:3px 0; }
+  .cal-cell { text-align:center; padding:5px 0 3px; border-radius:9px; position:relative; cursor:pointer; }
+  .cal-cell .d { font-size:13px; color:var(--text-1); font-weight:500; }
+  .cal-cell .l { font-size:9px; color:var(--text-3); margin-top:1px; }
+  .cal-cell.mute .d,.cal-cell.mute .l{ opacity:.3; }
+  .cal-cell.today .d { color:var(--accent); font-weight:800; }
+  .cal-cell.sel { background:var(--accent); }
+  .cal-cell.sel .d, .cal-cell.sel .l { color:#fff !important; opacity:1; }
+  .cal-cell.holiday .l { color:var(--accent); }
+  .cal-legend { margin-top:10px; font-size:11px; color:var(--text-3); }
+
+  /* 便签面板 */
+  .note-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .note-head .t { font-size:14px; font-weight:700; color:var(--text-1); }
+  .note-head .more { font-size:12px; color:var(--accent); cursor:pointer; }
+  .news-item { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--card-border); align-items:flex-start;}
+  .news-item:last-child { border-bottom:none; }
+  .news-item .no { width:20px; height:20px; border-radius:6px; background:var(--accent-soft); color:var(--accent);
+    font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none;}
+  .news-item .body .title { font-size:13px; color:var(--text-1); font-weight:600; line-height:1.4; }
+  .news-item .body .src { font-size:11px; color:var(--text-3); margin-top:2px; }
+  .news-item .time { font-size:11px; color:var(--text-3); flex:none; align-self:center; }
+
+  .foot-tip { margin-top:18px; font-size:11px; color:var(--text-3); max-width:340px; text-align:center; }
+</style>
+</head>
+<body data-weather="sunny" data-festival="none">
+
+  <div class="demo-bar">
+    <div class="grp"><span class="gl">天气</span>
+      <button class="chip" data-set-weather="sunny">晴</button>
+      <button class="chip" data-set-weather="cloudy">多云</button>
+      <button class="chip" data-set-weather="rain">雨</button>
+      <button class="chip" data-set-weather="snow">雪</button>
+      <button class="chip" data-set-weather="night">夜晚</button>
+    </div>
+    <div class="grp"><span class="gl">节日</span>
+      <button class="chip" data-set-festival="none">无</button>
+      <button class="chip" data-set-festival="spring">春节</button>
+      <button class="chip" data-set-festival="midautumn">中秋</button>
+      <button class="chip" data-set-festival="national">国庆</button>
+      <button class="chip" data-set-festival="christmas">圣诞</button>
+    </div>
+  </div>
+
+  <div class="widget">
+    <span class="fest-ribbon" data-deco></span>
+
+    <!-- 标签栏 -->
+    <div class="tabs">
+      <button class="tab active" data-tab="weather">天气</button>
+      <button class="tab" data-tab="calendar">日历</button>
+      <button class="tab" data-tab="notes">便签</button>
+    </div>
+
+    <!-- 天气面板 -->
+    <div class="panel active" data-panel="weather">
+      <div class="weather-hero">
+        <div class="wt-top">
+          <div class="wt-city">
+            <span class="city">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+              南昌
+            </span>
+            <span class="date">11月08日 星期日</span>
+          </div>
+          <div class="wt-icon" id="w-icon"></div>
+        </div>
+        <div class="wt-main">
+          <div class="wt-temp"><span id="w-temp">26</span>°</div>
+          <div class="wt-desc">
+            <div class="cond" id="w-cond">晴朗</div>
+            <div class="range" id="w-range">18° ~ 27° · 空气良</div>
+          </div>
+        </div>
+      </div>
+      <div class="wt-meta">
+        <div class="meta-item"><div class="k">湿度</div><div class="v" id="w-hum">45%</div></div>
+        <div class="meta-item"><div class="k">风力</div><div class="v" id="w-wind">东南 2级</div></div>
+        <div class="meta-item"><div class="k">体感</div><div class="v" id="w-feel">27°</div></div>
+        <div class="meta-item"><div class="k">日出</div><div class="v">06:32</div></div>
+      </div>
+    </div>
+
+    <!-- 日历面板 -->
+    <div class="panel" data-panel="calendar">
+      <div class="cal-head">
+        <span class="ym">2026年 11月</span>
+        <div class="cal-nav">
+          <button class="nav-btn" title="上月">‹</button>
+          <button class="nav-btn" title="今天">今</button>
+          <button class="nav-btn" title="下月">›</button>
+        </div>
+      </div>
+      <div class="cal-week"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-legend">今日 11/08 星期日 · 记者节</div>
+    </div>
+
+    <!-- 便签面板 -->
+    <div class="panel" data-panel="notes">
+      <div class="note-head"><span class="t">今日速览</span><span class="more">更多 ›</span></div>
+      <div class="news-item">
+        <span class="no">1</span>
+        <div class="body"><div class="title">南昌今日多云转晴，明起气温回升请注意补水</div><div class="src">本地天气</div></div>
+        <span class="time">09:12</span>
+      </div>
+      <div class="news-item">
+        <span class="no">2</span>
+        <div class="body"><div class="title">下周初冷空气来袭，最低温将跌至 12°C</div><div class="src">气象预报</div></div>
+        <span class="time">08:40</span>
+      </div>
+      <div class="news-item">
+        <span class="no">3</span>
+        <div class="body"><div class="title">记者节特别策划：记录身边的城市温度</div><div class="src">都市快报</div></div>
+        <span class="time">07:55</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot-tip">原型说明：上方三标签（天气 / 日历 / 便签）切换，一次只显示一项，节省桌面空间；「天气 / 节日」按钮实时切换并组合主题。</div>
+
+<script>
+  const W = {
+    sunny:  { cond:'晴朗', temp:'26', range:'18° ~ 27° · 空气良', hum:'45%', wind:'东南 2级', feel:'27°',
+      icon:'<svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="12" fill="#f5b301"/><g stroke="#f5b301" stroke-width="3" stroke-linecap="round"><line x1="32" y1="6" x2="32" y2="14"/><line x1="32" y1="50" x2="32" y2="58"/><line x1="6" y1="32" x2="14" y2="32"/><line x1="50" y1="32" x2="58" y2="32"/><line x1="14" y1="14" x2="20" y2="20"/><line x1="44" y1="44" x2="50" y2="50"/><line x1="50" y1="14" x2="44" y2="20"/><line x1="20" y1="44" x2="14" y2="50"/></g></svg>' },
+    cloudy: { cond:'多云', temp:'22', range:'16° ~ 24° · 空气良', hum:'58%', wind:'北 3级', feel:'22°',
+      icon:'<svg viewBox="0 0 64 64" fill="none"><path d="M20 44a10 10 0 010-20 14 14 0 0127-3 9 9 0 012 18z" fill="#cbd5e1"/></svg>' },
+    rain:   { cond:'小雨', temp:'17', range:'14° ~ 19° · 空气优', hum:'85%', wind:'东 3级', feel:'16°',
+      icon:'<svg viewBox="0 0 64 64" fill="none"><path d="M20 36a9 9 0 010-18 13 13 0 0125-3 8 8 0 012 16z" fill="#94a3b8"/><g stroke="#3b82f6" stroke-width="3" stroke-linecap="round"><line x1="24" y1="44" x2="22" y2="52"/><line x1="33" y1="44" x2="31" y2="52"/><line x1="42" y1="44" x2="40" y2="52"/></g></svg>' },
+    snow:   { cond:'小雪', temp:'2',  range:'-2° ~ 5° · 空气优',  hum:'90%', wind:'西北 4级', feel:'-3°',
+      icon:'<svg viewBox="0 0 64 64" fill="none"><path d="M20 34a9 9 0 010-18 13 13 0 0125-3 8 8 0 012 16z" fill="#cbd5e1"/><g fill="#38bdf8"><circle cx="24" cy="46" r="2.4"/><circle cx="33" cy="52" r="2.4"/><circle cx="41" cy="46" r="2.4"/></g></svg>' },
+    night:  { cond:'晴夜', temp:'14', range:'10° ~ 18° · 空气优', hum:'50%', wind:'静风', feel:'14°',
+      icon:'<svg viewBox="0 0 64 64" fill="none"><path d="M40 14a16 16 0 1010 28 18 18 0 01-10-28z" fill="#a78bfa"/><circle cx="20" cy="20" r="1.6" fill="#c4b5fd"/><circle cx="46" cy="46" r="1.4" fill="#c4b5fd"/></svg>' }
+  };
+  const F = { none:'', spring:'春节 · 新春快乐', midautumn:'中秋 · 阖家团圆', national:'国庆 · 举国同庆', christmas:'圣诞 · 圣诞快乐' };
+
+  const body = document.body;
+  function setWeather(k){
+    body.setAttribute('data-weather', k);
+    const d = W[k];
+    document.getElementById('w-cond').textContent = d.cond;
+    document.getElementById('w-temp').textContent = d.temp;
+    document.getElementById('w-range').textContent = d.range;
+    document.getElementById('w-hum').textContent = d.hum;
+    document.getElementById('w-wind').textContent = d.wind;
+    document.getElementById('w-feel').textContent = d.feel;
+    document.getElementById('w-icon').innerHTML = d.icon;
+    markActive('set-weather', k);
+  }
+  function setFestival(k){
+    body.setAttribute('data-festival', k);
+    const txt = F[k] || '';
+    document.querySelectorAll('[data-deco]').forEach(el => el.textContent = txt);
+    markActive('set-festival', k);
+  }
+  function markActive(attr, val){
+    document.querySelectorAll('[data-'+attr+']').forEach(b => b.classList.toggle('active', b.getAttribute('data-'+attr)===val));
+  }
+  // 标签切换
+  function switchTab(k){
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab===k));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel===k));
+  }
+  document.querySelectorAll('[data-set-weather]').forEach(b => b.addEventListener('click', () => setWeather(b.dataset.setWeather)));
+  document.querySelectorAll('[data-set-festival]').forEach(b => b.addEventListener('click', () => setFestival(b.dataset.setFestival)));
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+  // 2026年11月日历
+  (function(){
+    const first = 0;
+    const days = 30;
+    const today = 8;
+    const lunar = ['初七','初八','初九','初十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十','冬一','冬二','冬三','冬四','冬五','冬六'];
+    const holidays = { 8:'记者节' };
+    let html = '';
+    for(let i=0;i<first;i++) html += '<div class="cal-cell mute"><div class="d"> </div><div class="l"> </div></div>';
+    for(let d=1; d<=days; d++){
+      let cls = 'cal-cell';
+      if(d===today) cls += ' today';
+      if(holidays[d]) cls += ' holiday';
+      const l = holidays[d] || lunar[d-1];
+      html += '<div class="'+cls+'" onclick="selectCell(this)"><div class="d">'+d+'</div><div class="l">'+l+'</div></div>';
+    }
+    document.getElementById('cal-grid').innerHTML = html;
+  })();
+  function selectCell(el){
+    document.querySelectorAll('.cal-cell.sel').forEach(c=>c.classList.remove('sel'));
+    el.classList.add('sel');
+  }
+
+  setWeather('sunny');
+  setFestival('none');
+</script>
+</body>
+</html>
