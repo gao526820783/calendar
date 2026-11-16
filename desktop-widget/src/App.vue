@@ -106,11 +106,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="widget" :data-weather="themeName" :data-festival="festivalStyle" :style="accentStyle">
-    <!-- 天气微动效层（流云/雨丝/雪花/星空）—— 作为毛玻璃的被模糊底层 -->
+    <!-- 雨丝/雪花/星空 —— 毛玻璃的被模糊底层（放在 .app 之外，受 backdrop-filter 模糊） -->
     <div class="weather-anim" aria-hidden="true">
-      <div class="weather-anim-cloud"></div>
-      <div class="weather-anim-cloud"></div>
-      <div class="weather-anim-cloud"></div>
       <div class="weather-anim-rain"></div>
       <div class="weather-anim-snow"></div>
       <div class="weather-anim-stars"></div>
@@ -118,6 +115,14 @@ onBeforeUnmount(() => {
 
     <!-- 毛玻璃主面板 -->
     <div class="app">
+      <!-- 流云层：放在玻璃面板「内部」最底层，形状不被 backdrop-filter 糊掉；
+           位于 header/tabs/panel 之下（内容 z-index≥1），低透明度不遮文字 -->
+      <div class="weather-clouds" aria-hidden="true">
+        <div class="weather-anim-cloud"></div>
+        <div class="weather-anim-cloud"></div>
+        <div class="weather-anim-cloud"></div>
+      </div>
+
       <!-- 节日装饰（右下角大图标） -->
       <div class="deco" aria-hidden="true">{{ decoEmoji }}</div>
 

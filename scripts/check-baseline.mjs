@@ -131,7 +131,7 @@ section('1. 窗口与外壳契约');
 section('2. 外壳 DOM 契约');
 {
   const f = 'src/App.vue';
-  const must = ['widget', 'weather-anim', 'app', 'deco', 'header', 'header-title', 'gear',
+  const must = ['widget', 'weather-anim', 'weather-clouds', 'app', 'deco', 'header', 'header-title', 'gear',
     'festival-badge', 'tabs', 'tab', 'panel-wrap', 'panel', 'activeTab', 'switchTab'];
   for (const t of must) expectTplToken(f, t);
   hasToken(read(f), 'data-tauri-drag-region') ? ok('顶栏保留拖拽区 data-tauri-drag-region') : fail('顶栏保留拖拽区 data-tauri-drag-region');

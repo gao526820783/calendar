@@ -193,22 +193,38 @@ html, body {
 .weather-anim {
   position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
 }
-.weather-anim-cloud {
-  position: absolute; width: 180px; height: 60px; border-radius: 60px;
-  background: rgba(255, 255, 255, 0.55);
-  animation: drift 28s linear infinite;
-  opacity: 0;
-  filter: blur(2px);
+/* 流云容器：位于 .app 玻璃面板内部最底层（z-index:0），header/tabs/panel 之上压住内容，
+ * 自身不参与 .app 的 backdrop-filter（该滤镜只模糊背后元素），故云朵轮廓清晰可见。 */
+.weather-clouds {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  border-radius: inherit;
 }
-.widget[data-weather="sunny"] .weather-anim-cloud { opacity: 0.85; }
-.widget[data-weather="cloudy"] .weather-anim-cloud { opacity: 0.75; background: rgba(255, 255, 255, 0.5); }
-.widget[data-weather="rain"] .weather-anim-cloud { opacity: 0.35; }
-.weather-anim-cloud:nth-child(1) { top: 40px; left: -200px; animation-duration: 32s; }
-.weather-anim-cloud:nth-child(2) { top: 90px; left: -200px; animation-duration: 26s; animation-delay: -8s; width: 120px; height: 42px; }
-.weather-anim-cloud:nth-child(3) { top: 160px; left: -200px; animation-duration: 38s; animation-delay: -18s; width: 150px; height: 50px; }
+
+/* 云朵：内联 SVG（三圆 + 圆角平底）叠出经典卡通云轮廓，无图片文件/无网络/无依赖。
+ * 不用 radial-gradient —— WebView2 会把 `circle 22px at ...` 误解析成填满矩形的椭圆。
+ * SVG 里的 # 必须写成 %23（URL 编码）。尺寸统一，每朵用 --cs 缩放避免变形。 */
+.weather-anim-cloud {
+  position: absolute;
+  width: 160px; height: 84px;
+  left: -220px;
+  --cs: 1;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 84'><g fill='%23aebfd8'><rect x='28' y='42' width='104' height='28' rx='14'/><circle cx='54' cy='46' r='20'/><circle cx='82' cy='34' r='30'/><circle cx='112' cy='46' r='22'/></g></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  animation: drift 30s linear infinite;
+  opacity: 0;
+}
+.widget[data-weather="sunny"] .weather-anim-cloud { opacity: 0.5; }
+.widget[data-weather="cloudy"] .weather-anim-cloud { opacity: 0.55; }
+.widget[data-weather="rain"] .weather-anim-cloud { opacity: 0.24; }
+.widget[data-weather="night"] .weather-anim-cloud { opacity: 0.14; filter: brightness(0.7) sepia(0.3) hue-rotate(180deg); }
+.weather-anim-cloud:nth-child(1) { top: 28px;  --cs: 1;    animation-duration: 34s; }
+.weather-anim-cloud:nth-child(2) { top: 96px;  --cs: 0.72; animation-duration: 26s; animation-delay: -9s; }
+.weather-anim-cloud:nth-child(3) { top: 170px; --cs: 0.86; animation-duration: 40s; animation-delay: -20s; }
 @keyframes drift {
-  from { transform: translateX(0); }
-  to { transform: translateX(560px); }
+  from { transform: translateX(0) scale(var(--cs, 1)); }
+  to   { transform: translateX(620px) scale(var(--cs, 1)); }
 }
 
 .weather-anim-rain { position: absolute; inset: 0; opacity: 0; }
