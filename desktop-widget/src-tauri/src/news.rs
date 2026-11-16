@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NewsItem {
@@ -188,9 +189,6 @@ fn collect_feeds(rss_feeds: &[String], fixed_sources: &[crate::config::FixedSour
         if seen.insert(u.clone()) {
             feeds.push(u.clone());
         }
-        if feeds.len() >= 8 {
-            break;
-        }
     }
     feeds
 }
@@ -208,12 +206,56 @@ pub fn invalidate_news_cache() {
     }
 }
 
-pub async fn fetch_news(
-    client: &reqwest::Client,
-    rss_feeds: &[String],
-    fixed_sources: &[crate::config::FixedSource],
+// 解析单个 RSS 源，返回该源的新闻条目
+fn parse_feed(body: &str) -> Vec<NewsItem> {
+    let mut items: Vec<NewsItem> = Vec::new();
+    if let Ok(channel) = rss::Channel::read_from(body.as_bytes()) {
+        for it in channel.items().iter().take(50) {
+            let title = it.title().unwrap_or("").to_string();
+            if title.is_empty() {
+                continue;
+            }
+            // 提取正文摘要（优先 content:encoded，回退 description），清洗后用于展示与语音播报
+            let raw_content = it
+                .content()
+                .filter(|c| !c.trim().is_empty())
+                .or_else(|| it.description())
+                .unwrap_or("");
+            let summary = extract_summary(raw_content);
+            // 原文链接：优先 item 级 <link>，缺失时回退正文尾注链接
+            let link = it
+                .link()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| l.to_string())
+                .unwrap_or_else(|| extract_tail_link(raw_content));
+            let time = it
+                .pub_date()
+                .map(|d| {
+                    chrono::DateTime::parse_from_rfc2822(d)
+                        .map(|dt| {
+                            let secs = (chrono::Utc::now() - dt.with_timezone(&chrono::Utc))
+                                .num_seconds()
+                                .max(0) as u64;
+                            rel_time(secs)
+                        })
+                        .unwrap_or_else(|_| "最近".into())
+                })
+                .unwrap_or_else(|| "最近".into());
+            items.push(NewsItem { title, time, summary, link });
+        }
+    }
+    items
+}
+
+/// 并发抓取所有源；每有一个源返回就立即通过 `app` 推送 `news-chunk` 事件，
+/// 前端收到一块渲染一块，避免被最慢的源拖住。全部完成后返回完整列表（已缓存）。
+pub async fn fetch_news_streaming(
+    app: tauri::AppHandle,
+    client: reqwest::Client,
+    rss_feeds: Vec<String>,
+    fixed_sources: Vec<crate::config::FixedSource>,
 ) -> Result<Vec<NewsItem>, String> {
-    // 命中缓存直接返回
+    // 命中缓存直接返回（不发事件）
     if let Ok(c) = NEWS_CACHE.lock() {
         if let Some((at, items)) = c.as_ref() {
             if at.elapsed() < NEWS_CACHE_TTL && !items.is_empty() {
@@ -222,11 +264,65 @@ pub async fn fetch_news(
         }
     }
 
-    let feeds = collect_feeds(rss_feeds, fixed_sources);
+    let feeds = collect_feeds(&rss_feeds, &fixed_sources);
     if feeds.is_empty() {
         return Ok(Vec::new());
     }
 
+    // 各源并发抓取：futures 无序完成，谁先回来先推送
+    let mut handles = Vec::with_capacity(feeds.len());
+    for feed in feeds {
+        let client = client.clone();
+        handles.push(tokio::spawn(async move {
+            match client.get(&feed).send().await {
+                Ok(r) => match r.text().await {
+                    Ok(body) => parse_feed(&body),
+                    Err(_) => Vec::new(),
+                },
+                Err(_) => Vec::new(),
+            }
+        }));
+    }
+
+    let mut items: Vec<NewsItem> = Vec::new();
+    for h in handles {
+        let chunk = h.await.unwrap_or_default();
+        if chunk.is_empty() {
+            continue;
+        }
+        items.extend(chunk);
+        // 每拿到一个源的结果立即推送给前端（按现有累积顺序）
+        let snapshot = items.clone();
+        let _ = app.emit("news-chunk", snapshot);
+    }
+
+    items.truncate(100);
+    // 写入缓存（仅非空结果，避免缓存空列表）
+    if !items.is_empty() {
+        if let Ok(mut c) = NEWS_CACHE.lock() {
+            *c = Some((std::time::Instant::now(), items.clone()));
+        }
+    }
+    Ok(items)
+}
+
+// 保留原同步返回版本（供非流式调用 / 测试复用）
+pub async fn fetch_news(
+    client: &reqwest::Client,
+    rss_feeds: &[String],
+    fixed_sources: &[crate::config::FixedSource],
+) -> Result<Vec<NewsItem>, String> {
+    if let Ok(c) = NEWS_CACHE.lock() {
+        if let Some((at, items)) = c.as_ref() {
+            if at.elapsed() < NEWS_CACHE_TTL && !items.is_empty() {
+                return Ok(items.clone());
+            }
+        }
+    }
+    let feeds = collect_feeds(rss_feeds, fixed_sources);
+    if feeds.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut items: Vec<NewsItem> = Vec::new();
     for feed in &feeds {
         let body = match client.get(feed.as_str()).send().await {
@@ -236,44 +332,9 @@ pub async fn fetch_news(
             },
             Err(_) => continue,
         };
-        if let Ok(channel) = rss::Channel::read_from(body.as_bytes()) {
-            for it in channel.items().iter().take(20) {
-                let title = it.title().unwrap_or("").to_string();
-                if title.is_empty() {
-                    continue;
-                }
-                // 提取正文摘要（优先 content:encoded，回退 description），清洗后用于展示与语音播报
-                let raw_content = it
-                    .content()
-                    .filter(|c| !c.trim().is_empty())
-                    .or_else(|| it.description())
-                    .unwrap_or("");
-                let summary = extract_summary(raw_content);
-                // 原文链接：优先 item 级 <link>，缺失时回退正文尾注链接
-                let link = it
-                    .link()
-                    .filter(|l| !l.trim().is_empty())
-                    .map(|l| l.to_string())
-                    .unwrap_or_else(|| extract_tail_link(raw_content));
-                let time = it
-                    .pub_date()
-                    .map(|d| {
-                        chrono::DateTime::parse_from_rfc2822(d)
-                            .map(|dt| {
-                                let secs = (chrono::Utc::now() - dt.with_timezone(&chrono::Utc))
-                                    .num_seconds()
-                                    .max(0) as u64;
-                                rel_time(secs)
-                            })
-                            .unwrap_or_else(|_| "最近".into())
-                    })
-                    .unwrap_or_else(|| "最近".into());
-                items.push(NewsItem { title, time, summary, link });
-            }
-        }
+        items.extend(parse_feed(&body));
     }
-    items.truncate(20);
-    // 写入缓存（仅非空结果，避免缓存空列表）
+    items.truncate(100);
     if !items.is_empty() {
         if let Ok(mut c) = NEWS_CACHE.lock() {
             *c = Some((std::time::Instant::now(), items.clone()));

@@ -40,7 +40,11 @@ pub fn default_fixed_sources() -> Vec<FixedSource> {
     vec![
         FixedSource { name: "少数派".into(), url: "https://sspai.com/feed".into(), on: true },
         FixedSource { name: "36氪".into(), url: "https://36kr.com/feed".into(), on: true },
-        FixedSource { name: "V2EX".into(), url: "https://www.v2ex.com/index.xml".into(), on: true },
+        FixedSource { name: "知乎".into(), url: "https://www.zhihu.com/rss".into(), on: true },
+        FixedSource { name: "IT之家".into(), url: "https://ithome.com/rss/".into(), on: true },
+        FixedSource { name: "掘金".into(), url: "https://juejin.cn/rss".into(), on: true },
+        FixedSource { name: "华尔街日报".into(), url: "https://feeds.a.dj.com/rss/RSSWorldNews.xml".into(), on: false },
+        FixedSource { name: "V2EX".into(), url: "https://www.v2ex.com/index.xml".into(), on: false },
         FixedSource { name: "Hacker News".into(), url: "https://hnrss.org/frontpage".into(), on: false },
     ]
 }
@@ -108,6 +112,38 @@ pub fn load_settings(app: &tauri::AppHandle) -> AppSettings {
 pub fn save_settings(app: &tauri::AppHandle, settings: &AppSettings) {
     let path = config_path(app);
     if let Ok(json) = serde_json::to_string_pretty(settings) {
+        let _ = fs::write(path, json);
+    }
+}
+
+// ===== 窗口位置持久化（记住上次在桌面上的位置） =====
+// 单独存放，不混入 AppSettings：前端 set_settings 会整体覆盖 settings.json，
+// 若混在一起会被冲掉，因此独立成一个 window_pos.json。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+pub struct WindowPos {
+    pub x: i32,
+    pub y: i32,
+}
+
+fn window_pos_path(app: &tauri::AppHandle) -> PathBuf {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .unwrap_or_else(|_| PathBuf::from("."));
+    let _ = fs::create_dir_all(&dir);
+    dir.join("window_pos.json")
+}
+
+pub fn load_window_pos(app: &tauri::AppHandle) -> Option<WindowPos> {
+    let path = window_pos_path(app);
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|txt| serde_json::from_str::<WindowPos>(&txt).ok())
+}
+
+pub fn save_window_pos(app: &tauri::AppHandle, pos: WindowPos) {
+    let path = window_pos_path(app);
+    if let Ok(json) = serde_json::to_string(&pos) {
         let _ = fs::write(path, json);
     }
 }

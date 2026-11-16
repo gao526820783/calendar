@@ -19,22 +19,17 @@
         "resizable": false,
         "decorations": false,
         "visible": false,
-        "transparent": false,
+        "transparent": true,
         "skipTaskbar": true,
         "alwaysOnTop": false,
         "center": false,
         "x": 40,
         "y": 40,
-        "shadow": true
+        "shadow": false
       }
     ],
     "security": {
       "csp": null
-    },
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": false,
-      "menuOnLeftClick": true
     }
   },
   "bundle": {

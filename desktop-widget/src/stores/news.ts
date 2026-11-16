@@ -10,20 +10,52 @@ export interface NewsItem {
 export const useNewsStore = defineStore('news', {
   state: () => ({
     items: [] as NewsItem[],
-    expanded: false,
+    visibleCount: 6, // 分页显示条数，点「加载更多」递增
+    loading: false, // 正在刷新（供刷新按钮显示转圈/禁用）
   }),
   getters: {
     visibleItems(state): NewsItem[] {
-      return state.expanded ? state.items : state.items.slice(0, 3);
+      return state.items.slice(0, state.visibleCount);
+    },
+    hasMore(state): boolean {
+      return state.items.length > state.visibleCount;
     },
   },
   actions: {
+    loadMore() {
+      this.visibleCount += 6;
+    },
+    /** 首次加载：复用后端 30 分钟缓存（定时/启动时的默认路径） */
     async fetch() {
+      await this.doFetch();
+    },
+    /** 手动刷新：清后端缓存重新拉取，并重置分页 */
+    async refresh() {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
-        this.items = await invoke<NewsItem[]>('fetch_news');
+        await invoke('invalidate_news_cache');
+      } catch { /* 后端不可用时忽略，仍会重新拉取 */ }
+      await this.doFetch();
+    },
+    async doFetch() {
+      const { invoke } = await import('@tauri-apps/api/core');
+      // 清空旧数据，重置分页，准备逐块接收
+      this.items = [];
+      this.visibleCount = 6;
+      this.loading = true;
+      // 订阅后端的逐源推送：每有一个 RSS 源抓到就渲染一块（不被最慢的源拖住）
+      let unlisten: (() => void) | null = null;
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<NewsItem[]>('news-chunk', (e) => {
+          this.items = e.payload;
+        });
+      } catch { /* 浏览器预览环境无事件系统，退回一次性结果 */ }
+      try {
+        const result = await invoke<NewsItem[]>('fetch_news');
+        this.items = result;
       } catch {
-        // 浏览器预览或后端不可用时使用演示数据
+        // 后端不可用时使用演示数据
         if (this.items.length === 0) {
           this.items = [
             { title: 'AI 生成视频工具更新：支持更长片段与角色一致性', time: '10 分钟前', summary: '最新版本将单次生成时长提升至数分钟，并引入角色一致性技术，让同一角色在不同镜头中保持外观稳定。' },
@@ -33,10 +65,14 @@ export const useNewsStore = defineStore('news', {
             { title: '开源社区最新动态汇总', time: '昨天', summary: '本周开源社区活跃，多个知名项目发布重要版本更新，涵盖开发工具、框架与基础设施等多个方向。' },
           ];
         }
+      } finally {
+        // 一次性结果已到位，取消逐块订阅
+        if (unlisten) unlisten();
+        this.loading = false;
       }
     },
     toggleExpand() {
-      this.expanded = !this.expanded;
+      this.visibleCount = this.visibleCount >= this.items.length ? 6 : this.items.length;
     },
   },
 });

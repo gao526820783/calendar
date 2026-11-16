@@ -21,6 +21,14 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        // 单实例互斥：重复启动时只聚焦已开窗口，绝不新建窗口/托盘（基线红线：同一时刻只能跑一个实例）
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -35,6 +43,10 @@ fn main() {
             let h = handle.clone();
             handle.listen("app-ready", move |_event| {
                 if let Some(win) = h.get_webview_window("main") {
+                    // 恢复上次窗口位置（在 show() 之前设置，避免闪烁与配置坐标覆盖）
+                    if let Some(pos) = config::load_window_pos(&h) {
+                        let _ = win.set_position(tauri::PhysicalPosition::new(pos.x, pos.y));
+                    }
                     let _ = win.show();
                     let _ = win.set_focus();
                 }
@@ -89,6 +101,11 @@ fn main() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
+            } else if let tauri::WindowEvent::Moved(pos) = event {
+                // 拖动到新位置后持久化（Moved 携带物理像素坐标，直接存物理坐标，
+                // 恢复时也用物理坐标，避免 Logical/Physical 换算在多 DPI / 多显示器下漂移）
+                let app = window.app_handle();
+                let _ = config::save_window_pos(&app, config::WindowPos { x: pos.x, y: pos.y });
             }
         })
         .invoke_handler(tauri::generate_handler![

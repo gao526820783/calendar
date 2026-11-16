@@ -105,6 +105,8 @@ section('1. 窗口与外壳契约');
       ['decorations', win.decorations, false],
       ['visible', win.visible, false],
       ['skipTaskbar', win.skipTaskbar, true],
+      ['transparent', win.transparent, true],
+      ['shadow', win.shadow, false],
       ['title', win.title, '天气 · 日历 · 新闻'],
     ];
     for (const [k, got, want] of checks) {
@@ -117,6 +119,13 @@ section('1. 窗口与外壳契约');
   hasToken(read('src/main.ts'), 'app-ready') ? ok('main.ts emit("app-ready") 握手存在') : fail('main.ts emit("app-ready") 握手存在');
   hasToken(read('src-tauri/src/main.rs'), 'app-ready') ? ok('Rust 端监听 app-ready') : fail('Rust 端监听 app-ready');
   hasToken(read('src-tauri/src/main.rs'), 'prevent_close') ? ok('关闭窗口 = 隐藏到托盘（prevent_close）') : fail('关闭窗口 = 隐藏到托盘（prevent_close）');
+  // 窗口位置持久化：启动恢复上次位置、拖动保存位置（防回退成固定 40/40）
+  const mainRs2 = read('src-tauri/src/main.rs');
+  const cfgRs = read('src-tauri/src/config.rs');
+  hasToken(mainRs2, 'load_window_pos') ? ok('启动时恢复上次窗口位置（load_window_pos）') : fail('启动时恢复上次窗口位置', 'main.rs 须调用 config::load_window_pos');
+  hasToken(mainRs2, 'WindowEvent::Moved') && hasToken(mainRs2, 'save_window_pos') ? ok('拖动窗口时保存位置（Moved → save_window_pos）') : fail('拖动窗口时保存位置', 'on_window_event 须捕获 Moved 并 save_window_pos');
+  hasToken(mainRs2, 'PhysicalPosition') ? ok('窗口位置用物理坐标恢复（PhysicalPosition，防 DPI 漂移）') : fail('窗口位置用物理坐标恢复', '恢复须用 PhysicalPosition::new 而非 LogicalPosition 换算');
+  hasToken(cfgRs, 'window_pos') && hasToken(cfgRs, 'load_window_pos') && hasToken(cfgRs, 'save_window_pos') ? ok('窗口位置独立存于 window_pos.json（不混入 settings）') : fail('窗口位置独立存储', 'config.rs 须有 window_pos 读写');
 }
 
 section('2. 外壳 DOM 契约');
@@ -242,7 +251,14 @@ section('5. 新闻面板契约');
   hasToken(src, 'openSummary') ? ok('摘要展开索引 openSummary（一次只展开一条）') : fail('摘要展开索引 openSummary');
   hasToken(src, 'toggleSummary') ? ok('点击条目切换展开 toggleSummary') : fail('点击条目切换展开 toggleSummary');
   const store = read('src/stores/news.ts');
-  hasToken(store, 'slice(0, 3)') ? ok('默认显示 3 条') : fail('默认显示 3 条', 'visibleItems 应为 items.slice(0, 3)');
+  // 新闻分页（持续加载）：默认 visibleCount=6，visibleItems 取前 visibleCount 条，loadMore 每次 +6
+  hasToken(store, 'visibleCount') ? ok('存在分页字段 visibleCount') : fail('存在分页字段 visibleCount');
+  hasToken(store, 'slice(0, state.visibleCount)') ? ok('默认展示前 visibleCount 条（分页，非固定 3 条）') : fail('默认展示前 visibleCount 条', 'visibleItems 应为 items.slice(0, state.visibleCount)');
+  hasToken(store, 'loadMore') ? ok('存在 loadMore 动作（加载更多）') : fail('存在 loadMore 动作');
+  hasToken(store, 'hasMore') ? ok('存在 hasMore getter（是否还可加载）') : fail('存在 hasMore getter');
+  // 模板：加载更多按钮 + 总条数显示
+  (hasToken(newsTpl, 'news-more') && hasToken(newsTpl, '加载更多')) ? ok('「加载更多 ▼」按钮渲染') : fail('「加载更多 ▼」按钮渲染', '模板须含 news-more 与「加载更多」');
+  (hasToken(newsTpl, 'news-count') && hasToken(newsTpl, '条')) ? ok('顶部显示新闻总条数') : fail('顶部显示新闻总条数', '模板须含 news-count 与「条」');
   // 展开全部后由 .news-list 自身滚动承载，主面板不整体滚动；明显滚动条
   const style = read('src/components/NewsCard.vue');
   (style.includes('.news-list') && /news-list[\s\S]*?overflow-y:\s*auto/.test(style))
@@ -426,16 +442,27 @@ section('8. 后端契约');
 /* ------------------------------------------------------------------ */
 /* 9. 托盘契约                                                         */
 /* ------------------------------------------------------------------ */
-section('9. 托盘契约');
-{
-  const tray = read('src-tauri/src/tray.rs');
-  const must = ['show_menu_on_left_click(false)', 'with_inner_tray_icon', 'show_menu',
-    '显示主窗口', '刷新天气', '设置', '退出程序', 'PREFIX_RIGHT', 'tray_action', 'set_menu'];
-  for (const t of must) expectToken('src-tauri/src/tray.rs', t);
-  hasToken(tray, 'menu_id_maps_to_action') ? ok('托盘映射单元测试保留') : fail('托盘映射单元测试保留');
-  hasToken(tray, 'x-show') && hasToken(tray, 'x-quit') ? ok('右键菜单 ID 使用 x- 前缀') : fail('右键菜单 ID 使用 x- 前缀');
-  hasToken(tray, 'set_menu(Some(exit_menu.clone())') ? ok('左键弹出后恢复退出菜单') : fail('左键弹出后恢复退出菜单');
-}
+  section('9. 托盘契约');
+  {
+    const tray = read('src-tauri/src/tray.rs');
+    // 左键：显示主窗口；右键：原生 popup_menu 弹出单一菜单（不再分左右双菜单）
+    const must = ['popup_menu', 'show_main', 'MouseButton::Left', 'MouseButton::Right',
+      '显示主窗口', '刷新天气', '设置', '退出程序', 'get_webview_window', 'TrayIconEvent::Click'];
+    for (const t of must) expectToken('src-tauri/src/tray.rs', t);
+    // 菜单项 ID（单一菜单）：show / refresh / settings / quit
+    ['"show"', '"refresh"', '"settings"', '"quit"'].forEach((id) =>
+      expectToken('src-tauri/src/tray.rs', id, `托盘菜单项 ID ${id}`));
+    // 动作映射（on_menu_event）：show→show_main；refresh→emit tray-refresh；settings→emit tray-settings；quit→exit(0)
+    hasToken(tray, 'tray-refresh') ? ok('刷新天气 → emit("tray-refresh")') : fail('刷新天气 → emit("tray-refresh")');
+    hasToken(tray, 'tray-settings') ? ok('设置 → emit("tray-settings")') : fail('设置 → emit("tray-settings")');
+    hasToken(tray, 'app.exit(0)') ? ok('退出程序 → app.exit(0)') : fail('退出程序 → app.exit(0)');
+    // 唯一托盘来源：tray.rs 程序化构建；tauri.conf.json 不得再配 trayIcon
+    // （否则 Tauri 会自动再建一个托盘图标，造成一个进程里出现两个图标 / 双窗口）
+    const conf = read('src-tauri/tauri.conf.json');
+    !hasToken(conf, 'trayIcon')
+      ? ok('唯一托盘来源：tauri.conf.json 未配置 trayIcon（避免自动重复创建双图标）')
+      : fail('唯一托盘来源：tauri.conf.json 不得配置 trayIcon（会造成双图标）');
+  }
 
 /* ------------------------------------------------------------------ */
 /* 10. 红线校验                                                        */
@@ -542,6 +569,11 @@ section('10. 红线校验');
   const heavyRust = [...cargo.matchAll(/^([a-zA-Z0-9_-]+)\s*=/gm)].map((m) => m[1])
     .filter((d) => /onnx|tensorflow|whisper|torch|ort|ffmpeg/i.test(d));
   heavyRust.length === 0 ? ok('R9：Cargo.toml 未引入重型依赖') : fail('R9：Cargo.toml 未引入重型依赖', heavyRust.join(', '));
+
+  // R10 单实例互斥：Cargo.toml 须注册 tauri-plugin-single-instance（防回退成多实例/双图标）
+  cargo.includes('tauri-plugin-single-instance')
+    ? ok('R10：单实例互斥插件已注册')
+    : fail('R10：单实例互斥插件已注册');
 }
 
 /* ------------------------------------------------------------------ */

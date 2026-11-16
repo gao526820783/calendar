@@ -18,13 +18,14 @@ pub async fn fetch_weather(city: String) -> Result<WeatherData, String> {
 }
 
 #[tauri::command]
-pub async fn fetch_news(state: State<'_, SettingsState>) -> Result<Vec<NewsItem>, String> {
+pub async fn fetch_news(state: State<'_, SettingsState>, app: tauri::AppHandle) -> Result<Vec<NewsItem>, String> {
     let s = state.read().await.clone();
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
-    news::fetch_news(&client, &s.rss_feeds, &s.fixed_sources).await
+    // 流式：各源并发抓取，每有一个源返回立即 emit("news-chunk")，前端逐块渲染
+    news::fetch_news_streaming(app, client, s.rss_feeds, s.fixed_sources).await
 }
 
 // 校验并规范化用户提交的 RSS 地址：合法性 + 去重 + 上限。返回 Ok(规范化地址) 或 Err(原因)。

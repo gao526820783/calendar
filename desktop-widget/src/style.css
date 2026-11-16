@@ -30,10 +30,10 @@
   --glass-blur-sm: 10px;
   --glass-sat: 175%;
 
-  /* 玻璃填充（白）：主面板 / 控件 / 底纹块 */
-  --glass-tint: rgba(255, 255, 255, 0.34);
-  --glass-tint-strong: rgba(255, 255, 255, 0.55);
-  --glass-tint-weak: rgba(255, 255, 255, 0.18);
+  /* 玻璃填充（白）：主面板 / 控件 / 底纹块（透明窗口下为真实桌面毛玻璃） */
+  --glass-tint: rgba(255, 255, 255, 0.42);
+  --glass-tint-strong: rgba(255, 255, 255, 0.58);
+  --glass-tint-weak: rgba(255, 255, 255, 0.2);
 
   /* 玻璃描边 */
   --glass-border: rgba(255, 255, 255, 0.5);
@@ -76,7 +76,7 @@
 
 html, body {
   margin: 0; padding: 0;
-  background: #b9c9e0;
+  background: transparent;
   font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -86,26 +86,46 @@ html, body {
   --bg1: #ffe49a; --bg2: #5fb6ee;
   --bg-glow: rgba(255, 246, 200, 0.75);
   --accent: #f59e0b; --accent-soft: rgba(245, 158, 11, 0.16);
+  /* 暖金玻璃：保留透明毛玻璃，但给面板染上晴天暖色调（桌面依旧透出） */
+  --glass-tint: rgba(255, 238, 198, 0.40);
+  --glass-tint-strong: rgba(255, 248, 230, 0.58);
+  --glass-border: rgba(255, 224, 160, 0.55);
 }
 .widget[data-weather="cloudy"] {
   --bg1: #e8eef7; --bg2: #93a8c4;
   --bg-glow: rgba(255, 255, 255, 0.55);
   --accent: #5b6b80; --accent-soft: rgba(91, 107, 128, 0.16);
+  /* 灰蓝玻璃 */
+  --glass-tint: rgba(224, 234, 246, 0.42);
+  --glass-tint-strong: rgba(244, 248, 253, 0.60);
+  --glass-border: rgba(255, 255, 255, 0.5);
 }
 .widget[data-weather="rain"] {
   --bg1: #7e97b5; --bg2: #46586f;
   --bg-glow: rgba(200, 220, 240, 0.4);
   --accent: #3b82f6; --accent-soft: rgba(59, 130, 246, 0.18);
+  /* 冷蓝玻璃 */
+  --glass-tint: rgba(176, 198, 222, 0.40);
+  --glass-tint-strong: rgba(214, 226, 240, 0.58);
+  --glass-border: rgba(214, 228, 244, 0.5);
 }
 .widget[data-weather="snow"] {
   --bg1: #f2f8ff; --bg2: #a9c6e8;
   --bg-glow: rgba(255, 255, 255, 0.8);
   --accent: #0ea5e9; --accent-soft: rgba(14, 165, 233, 0.18);
+  /* 冰白玻璃 */
+  --glass-tint: rgba(238, 246, 255, 0.42);
+  --glass-tint-strong: rgba(248, 252, 255, 0.60);
+  --glass-border: rgba(255, 255, 255, 0.55);
 }
 .widget[data-weather="thunder"] {
   --bg1: #9d8fbd; --bg2: #4c4268;
   --bg-glow: rgba(226, 214, 255, 0.42);
   --accent: #7c3aed; --accent-soft: rgba(124, 58, 237, 0.2);
+  /* 紫灰玻璃 */
+  --glass-tint: rgba(198, 190, 220, 0.42);
+  --glass-tint-strong: rgba(228, 222, 242, 0.60);
+  --glass-border: rgba(220, 210, 240, 0.5);
 }
 
 /* 夜间：整体转深色玻璃（原型 night 主题） */
@@ -113,9 +133,9 @@ html, body {
   --bg1: #1b2740; --bg2: #0a0f1c;
   --bg-glow: rgba(120, 150, 220, 0.22);
 
-  --glass-tint: rgba(18, 26, 44, 0.44);
-  --glass-tint-strong: rgba(30, 41, 64, 0.58);
-  --glass-tint-weak: rgba(255, 255, 255, 0.07);
+  --glass-tint: rgba(18, 26, 44, 0.5);
+  --glass-tint-strong: rgba(30, 41, 64, 0.6);
+  --glass-tint-weak: rgba(255, 255, 255, 0.08);
 
   --glass-border: rgba(255, 255, 255, 0.14);
   --glass-border-weak: rgba(255, 255, 255, 0.08);
@@ -151,19 +171,20 @@ html, body {
 .widget[data-festival="jizhe"]    { --accent: #3f6ea6; --accent-soft: rgba(63, 110, 166, 0.14); --festival: #3f6ea6; }
 .widget[data-festival="shengdan"] { --accent: #047857; --accent-soft: rgba(4, 120, 87, 0.14); --festival: #047857; }
 
-/* ===== 窗口骨架（壁纸层） ===== */
+/* ===== 窗口骨架（透明层，桌面直接透出） =====
+ * 不再绘制实色「天空壁纸」——窗口本身 transparent + body 透明，
+ * 真实桌面从 .widget 透出，由内层 .app 的 backdrop-filter 做毛玻璃模糊。
+ * 仅保留 10px 透明内边距，给 .app 的投影留出悬浮光晕空间。
+ */
 .widget {
   position: relative;
   width: 320px;
   height: 100vh;
-  padding: 8px;
+  padding: 10px;
   display: flex;
-  background:
-    radial-gradient(90% 55% at 18% 0%, var(--bg-glow), transparent 62%),
-    radial-gradient(70% 50% at 92% 100%, rgba(255, 255, 255, 0.22), transparent 60%),
-    linear-gradient(155deg, var(--bg1), var(--bg2));
+  background: transparent;
   color: var(--text-primary);
-  transition: background 0.6s ease, color 0.3s ease;
+  transition: color 0.3s ease;
   overflow: hidden;
   user-select: none;
 }

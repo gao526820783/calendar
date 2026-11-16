@@ -36,6 +36,18 @@ async function openOrigin(url: string) {
     <!-- 节日祝福语 -->
     <div v-if="festBadge" class="fest-badge">{{ festBadge }}</div>
 
+    <!-- 顶部工具栏：标题 + 刷新按钮 -->
+    <div class="news-toolbar">
+      <span class="news-toolbar-title">资讯</span>
+      <span class="news-count">{{ news.items.length }} 条</span>
+      <span
+        class="news-refresh"
+        :class="{ spinning: news.loading }"
+        title="刷新新闻（重新拉取最新内容）"
+        @click="!news.loading && news.refresh()"
+      >⟳ 刷新</span>
+    </div>
+
     <!-- 新闻列表 -->
     <div class="news-list">
       <div
@@ -66,10 +78,10 @@ async function openOrigin(url: string) {
     </div>
 
     <div
-      v-if="news.items.length > 3"
+      v-if="news.hasMore"
       class="news-more"
-      @click="news.toggleExpand()"
-    >{{ news.expanded ? '收起 ▲' : '查看更多 ▼' }}</div>
+      @click="news.loadMore()"
+    >加载更多 ▼</div>
   </div>
 </template>
 
@@ -178,7 +190,46 @@ async function openOrigin(url: string) {
 }
 .n-origin:hover { opacity: 0.72; text-decoration: underline; }
 
-/* ===== 查看更多 ===== */
+/* ===== 顶部工具栏 ===== */
+.news-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: 4px;
+}
+.news-toolbar-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.news-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex: 1;
+}
+.news-refresh {
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  transition: background 0.15s, opacity 0.15s;
+}
+.news-refresh:hover { background: var(--glass-tint-weak); opacity: 0.85; }
+.news-refresh.spinning { opacity: 0.5; cursor: wait; }
+.news-refresh.spinning::first-letter { display: inline-block; animation: spin 0.8s linear infinite; }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ===== 加载更多 ===== */
 .news-more {
   font-size: 12px;
   color: var(--accent);

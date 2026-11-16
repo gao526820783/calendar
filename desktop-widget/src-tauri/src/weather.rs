@@ -200,6 +200,8 @@ pub async fn fetch_weather(
         .map_err(|e| e.to_string())?;
 
     // 取未来 24 小时（从当前小时开始）
+    // 注：API 以 timezone=Asia/Shanghai 返回本地时间字符串，chrono::Local 在
+    // 北京时间机器上与之同源，可直接字符串比较定位当前小时。
     let now = chrono::Local::now().format("%Y-%m-%dT%H:00").to_string();
     let start = om
         .hourly

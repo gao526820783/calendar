@@ -71,10 +71,12 @@ function switchTab(tab: 'weather' | 'calendar' | 'news') {
 onMounted(async () => {
   await settings.load();
   calendar.init();
-  // 新闻列表
-  await news.fetch();
+  // 天气、新闻互不依赖 → 并行请求，各自就绪各自渲染（日历为本地计算，已在上方瞬时完成）
+  await Promise.allSettled([
+    weather.fetch(settings.settings.city),
+    news.fetch(),
+  ]);
   // 正式实现：由天气数据驱动皮肤；后端不可用时用演示数据预览
-  await weather.fetch(settings.settings.city);
   if (!weather.data) {
     weather.useDemo(settings.settings.city);
   }
