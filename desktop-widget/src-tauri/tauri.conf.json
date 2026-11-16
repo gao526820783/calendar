@@ -19,13 +19,14 @@
         "resizable": false,
         "decorations": false,
         "visible": false,
-        "transparent": true,
+        "transparent": false,
+        "backgroundColor": "#F4F7FB",
         "skipTaskbar": true,
         "alwaysOnTop": false,
         "center": false,
         "x": 40,
         "y": 40,
-        "shadow": false
+        "shadow": true
       }
     ],
     "security": {

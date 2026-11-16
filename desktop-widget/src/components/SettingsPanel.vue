@@ -218,14 +218,12 @@ function close(e: Event) {
 </template>
 
 <style scoped>
-/* ===== 设置弹窗：毛玻璃遮罩 + 玻璃面板（对应原型 .mask/.sheet） ===== */
+/* ===== 设置弹窗：半透明遮罩 + 玻璃观感面板（对应原型 .mask/.sheet） ===== */
 .set-mask {
   position: absolute; inset: 0;
   z-index: 100;
   display: flex; align-items: center; justify-content: center;
   background: rgba(15, 23, 42, 0.35);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
-  backdrop-filter: blur(8px) saturate(120%);
   border-radius: var(--radius-card);
   overflow: hidden;
 }
@@ -237,8 +235,6 @@ function close(e: Event) {
   border-radius: 18px;
   color: var(--text-primary);
   background: var(--glass-tint-strong);
-  -webkit-backdrop-filter: blur(26px) saturate(180%);
-  backdrop-filter: blur(26px) saturate(180%);
   border: 1px solid var(--glass-border);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.32), inset 0 1px 0 var(--glass-inner-hi);
   scrollbar-width: thin;

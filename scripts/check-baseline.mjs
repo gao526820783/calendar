@@ -105,8 +105,9 @@ section('1. 窗口与外壳契约');
       ['decorations', win.decorations, false],
       ['visible', win.visible, false],
       ['skipTaskbar', win.skipTaskbar, true],
-      ['transparent', win.transparent, true],
-      ['shadow', win.shadow, false],
+      ['transparent', win.transparent, false],
+      ['backgroundColor', win.backgroundColor, '#F4F7FB'],
+      ['shadow', win.shadow, true],
       ['title', win.title, '天气 · 日历 · 新闻'],
     ];
     for (const [k, got, want] of checks) {
@@ -323,12 +324,17 @@ section('7. 皮肤与设计令牌契约');
   for (const t of tokens) {
     new RegExp(`${t}\\s*:`).test(css) ? ok(`令牌 ${t}`) : fail(`令牌 ${t}`, `style.css 中未定义`);
   }
-  // 毛玻璃不得降级
+  // R8：不得使用 backdrop-filter（实测 GPU 占用涨约 3 倍，2026-11-16 移除）
   const app = read('src/App.vue');
   const setp = read('src/components/SettingsPanel.vue');
-  hasToken(css, 'backdrop-filter') ? ok('style.css 保留 backdrop-filter 毛玻璃（R8）') : fail('style.css 保留 backdrop-filter 毛玻璃（R8）');
-  hasToken(css, 'saturate') ? ok('毛玻璃保留 saturate() 增色') : fail('毛玻璃保留 saturate() 增色');
-  hasToken(setp, 'backdrop-filter') ? ok('设置弹层保留 backdrop-filter（R8）') : fail('设置弹层保留 backdrop-filter（R8）');
+  const wcard = read('src/components/WeatherCard.vue');
+  const calcard = read('src/components/CalendarCard.vue');
+  // 只检查真实 CSS 声明（行首是属性），注释里提到 backdrop-filter 不算
+  const hasBackdropDecl = (txt) => /(^|\n)\s*-?webkit-?backdrop-filter\s*:/.test(txt);
+  !hasBackdropDecl(css) ? ok('style.css 无 backdrop-filter 声明（R8）') : fail('style.css 无 backdrop-filter 声明（R8）', '移除毛玻璃以降 CPU');
+  !hasBackdropDecl(setp) ? ok('设置弹层无 backdrop-filter（R8）') : fail('设置弹层无 backdrop-filter（R8）');
+  !hasBackdropDecl(wcard) ? ok('天气卡片无 backdrop-filter（R8）') : fail('天气卡片无 backdrop-filter（R8）');
+  !hasBackdropDecl(calcard) ? ok('日历卡片无 backdrop-filter（R8）') : fail('日历卡片无 backdrop-filter（R8）');
   // 皮肤取值
   ['sunny', 'cloudy', 'rain', 'snow', 'thunder', 'night'].forEach((v) => {
     hasToken(css, `data-weather="${v}"`) ? ok(`天气皮肤 data-weather="${v}"`) : fail(`天气皮肤 data-weather="${v}"`);
@@ -556,9 +562,11 @@ section('10. 红线校验');
     }
   }
 
-  // R8 毛玻璃
-  const css = read('src/style.css');
-  hasToken(css, 'backdrop-filter') ? ok('R8：毛玻璃 backdrop-filter 保留') : fail('R8：毛玻璃 backdrop-filter 保留');
+  // R8：禁用毛玻璃（性能优化）
+  const cssR8 = read('src/style.css');
+  /(^|\n)\s*-?webkit-?backdrop-filter\s*:/.test(cssR8)
+    ? fail('R8：无 backdrop-filter 毛玻璃', '实测毛玻璃使 GPU 占用涨约 3 倍')
+    : ok('R8：无 backdrop-filter 毛玻璃');
 
   // 依赖体积红线：不得引入重型依赖
   const pkg = json('package.json');

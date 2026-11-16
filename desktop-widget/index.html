@@ -12,11 +12,11 @@
     -->
     <style>
       :root { color-scheme: light dark; }
-      /* WebView 背景：透明，配合 tauri.conf.json transparent:true 让真实桌面透出，
-         由内容层 .app 的 backdrop-filter 做毛玻璃模糊 */
+      /* WebView 背景：实色，配合 tauri.conf.json transparent:false 的不透明窗口。
+         窗口壁纸由内容层 .widget 渐变绘制，此处给首帧一个中性底色防闪白。 */
       html, body {
         margin: 0; padding: 0;
-        background: transparent;
+        background: #F4F7FB;
         font-family: -apple-system, "Microsoft YaHei", "Segoe UI", sans-serif;
       }
       /* 启动占位骨架，App 挂载前显示，避免白屏 */

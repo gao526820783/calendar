@@ -329,8 +329,6 @@ const { dragging } = useDragScroll(stripRef);
   border-radius: var(--radius-cell);
   padding: 6px 4px;
   text-align: center;
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
-  backdrop-filter: blur(var(--glass-blur-sm));
   box-shadow: var(--glass-shadow-sm);
 }
 .w-cell .v { font-size: 14px; font-weight: 600; color: var(--text-primary); }
@@ -398,8 +396,6 @@ const { dragging } = useDragScroll(stripRef);
   border-radius: var(--radius-cell);
   padding: 4px 4px;
   flex-shrink: 0;
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
-  backdrop-filter: blur(var(--glass-blur-sm));
 }
 .w-hr .t { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
 .w-hr .i { font-size: 17px; margin: 3px 0; }

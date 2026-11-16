@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="widget" :data-weather="themeName" :data-festival="festivalStyle" :style="accentStyle">
-    <!-- 雨丝/雪花/星空 —— 毛玻璃的被模糊底层（放在 .app 之外，受 backdrop-filter 模糊） -->
+    <!-- 雨丝/雪花/星空 —— 叠在天空壁纸之上的动态纹理（放在 .app 之外，作为面板半透明填充下的背景） -->
     <div class="weather-anim" aria-hidden="true">
       <div class="weather-anim-rain"></div>
       <div class="weather-anim-snow"></div>
@@ -115,7 +115,7 @@ onBeforeUnmount(() => {
 
     <!-- 毛玻璃主面板 -->
     <div class="app">
-      <!-- 流云层：放在玻璃面板「内部」最底层，形状不被 backdrop-filter 糊掉；
+      <!-- 流云层：放在面板「内部」最底层，轮廓清晰；
            位于 header/tabs/panel 之下（内容 z-index≥1），低透明度不遮文字 -->
       <div class="weather-clouds" aria-hidden="true">
         <div class="weather-anim-cloud"></div>

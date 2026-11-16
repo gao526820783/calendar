@@ -131,8 +131,6 @@ function dayTitle(cell: {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-control);
   background: var(--control-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
-  backdrop-filter: blur(var(--glass-blur-sm));
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 11px;
