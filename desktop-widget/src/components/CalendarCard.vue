@@ -106,26 +106,26 @@ function dayTitle(cell: {
 </template>
 
 <style scoped>
-.cal-panel { display: flex; flex-direction: column; }
+.cal-panel { display: flex; flex-direction: column; height: 100%; }
 
 /* ===== 头部：前后翻月 + 年月下拉 + 今天 ===== */
 .cal-head {
   display: flex;
   gap: 5px;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .cal-head .sel {
   flex: 1 1 0;
   min-width: 0;
   text-align: center;
   font-size: 12px;
-  padding: 7px 4px;
+  padding: 4px 4px;
 }
 /* 年份下拉内容更长，给它多一点宽度 */
 .cal-head .sel:nth-of-type(1) { flex: 1.3 1 0; }
 .cal-nav {
-  width: 28px; height: 30px;
+  width: 28px; height: 26px;
   flex: none;
   overflow: hidden;
   border: 1px solid var(--glass-border);
@@ -147,22 +147,25 @@ function dayTitle(cell: {
   text-align: center;
   font-size: 11px;
   color: var(--text-secondary);
-  margin-bottom: 6px;
+  margin-bottom: 3px;
 }
-.cal-week span { padding: 3px 0; font-weight: 500; }
+.cal-week span { padding: 1px 0; font-weight: 500; }
 
 /* ===== 日期网格 ===== */
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 2px;
+  grid-auto-rows: 1fr;
+  flex: 1;
+  min-height: 0;
+  gap: 1px;
   width: 100%;
 }
 .cal-cell {
   position: relative;
   min-width: 0;
-  min-height: 38px;
-  padding: 3px 0;
+  min-height: 0;
+  padding: 1px 0;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -177,7 +180,7 @@ function dayTitle(cell: {
 .cal-cell .lu {
   font-size: 9px;
   color: var(--text-secondary);
-  margin-top: 1px;
+  margin-top: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -219,21 +222,21 @@ function dayTitle(cell: {
 
 /* ===== 底部：今天农历 + 图例 ===== */
 .cal-extra {
-  margin-top: 10px;
-  padding-top: 9px;
+  margin-top: 5px;
+  padding-top: 5px;
   border-top: 1px solid var(--divider);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 3px;
 }
 .cal-lunar-text { font-size: 11px; color: var(--text-secondary); }
 .cal-legend {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  font-size: 10px;
-  color: var(--text-muted);
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 .cal-legend-item { display: inline-flex; align-items: center; gap: 4px; }
 .cal-legend .dot { position: static; transform: none; }

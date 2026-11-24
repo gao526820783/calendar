@@ -62,7 +62,7 @@ async function openOrigin(url: string) {
           <div class="n-title">{{ item.title }}</div>
           <div class="n-meta">
             <span class="n-time">{{ item.time }}</span>
-            <span v-if="item.summary && openSummary !== i" class="n-sum">{{ item.summary.slice(0, 22) }}…</span>
+            <span v-if="item.summary && openSummary !== i" class="n-sum">{{ item.summary }}</span>
           </div>
           <div v-if="item.summary && openSummary === i" class="n-full">
             <div class="n-full-text">{{ item.summary }}</div>
@@ -161,10 +161,12 @@ async function openOrigin(url: string) {
 .n-sum {
   flex: 1;
   min-width: 0;
+  line-height: 1.4;
+  opacity: 0.85;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.8;
 }
 
 /* 展开后的完整摘要 */

@@ -100,7 +100,7 @@ section('1. 窗口与外壳契约');
   else {
     const checks = [
       ['width', win.width, 320],
-      ['height', win.height, 480],
+      ['height', win.height, 335],
       ['resizable', win.resizable, false],
       ['decorations', win.decorations, false],
       ['visible', win.visible, false],
@@ -118,6 +118,8 @@ section('1. 窗口与外壳契约');
   const idx = read('index.html');
   hasToken(idx, 'boot') ? ok('index.html 保留 #boot 占位骨架（防白屏）') : fail('index.html 保留 #boot 占位骨架');
   hasToken(read('src/main.ts'), 'app-ready') ? ok('main.ts emit("app-ready") 握手存在') : fail('main.ts emit("app-ready") 握手存在');
+  const mainTs = read('src/main.ts');
+  hasToken(mainTs, 'contextmenu') && hasToken(mainTs, 'preventDefault') ? ok('R11：窗口内右键拦截 WebView 原生菜单（contextmenu → preventDefault）') : fail('R11：窗口内右键不弹浏览器菜单', 'main.ts 须全局监听 contextmenu 并 preventDefault');
   hasToken(read('src-tauri/src/main.rs'), 'app-ready') ? ok('Rust 端监听 app-ready') : fail('Rust 端监听 app-ready');
   hasToken(read('src-tauri/src/main.rs'), 'prevent_close') ? ok('关闭窗口 = 隐藏到托盘（prevent_close）') : fail('关闭窗口 = 隐藏到托盘（prevent_close）');
   // 窗口位置持久化：启动恢复上次位置、拖动保存位置（防回退成固定 40/40）
@@ -132,17 +134,38 @@ section('1. 窗口与外壳契约');
 section('2. 外壳 DOM 契约');
 {
   const f = 'src/App.vue';
-  const must = ['widget', 'weather-anim', 'weather-clouds', 'app', 'deco', 'header', 'header-title', 'gear',
-    'festival-badge', 'tabs', 'tab', 'panel-wrap', 'panel', 'activeTab', 'switchTab'];
+  const must = ['widget', 'weather-anim', 'weather-clouds', 'app', 'deco', 'header', 'gear',
+    'festival-badge', 'tabs', 'tab', 'panel-wrap', 'panel', 'activeTab', 'onTabClick'];
   for (const t of must) expectTplToken(f, t);
-  hasToken(read(f), 'data-tauri-drag-region') ? ok('顶栏保留拖拽区 data-tauri-drag-region') : fail('顶栏保留拖拽区 data-tauri-drag-region');
+  const appSrc = read(f);
+  // 拖拽与点击必须共存：按钮上不得有 data-tauri-drag-region（会吞 click，2026-11-24 实测
+  // Tab 点了没反应），改用 pointer 位移阈值 + getCurrentWindow().startDragging()。
+  !/data-tauri-drag-region/.test(readTpl(f).replace(/<!--[\s\S]*?-->/g, ''))
+    ? ok('顶栏无 data-tauri-drag-region（按钮需保留 click）')
+    : fail('顶栏不得用 data-tauri-drag-region', '标在按钮/容器上会吞 click，改用手动拖拽');
+  hasToken(appSrc, 'startDragging') && hasToken(appSrc, 'pointerdown') && hasToken(appSrc, 'pointermove')
+    ? ok('全窗口手动拖拽：pointer 位移阈值 → startDragging')
+    : fail('全窗口手动拖拽存在', 'App.vue 须监听 pointerdown/pointermove 并调用 startDragging');
+  hasToken(appSrc, 'isDragBlocked') && hasToken(appSrc, 'w-strip') && hasToken(appSrc, 'set-mask')
+    ? ok('拖拽排除区：预报条 / 设置弹层 / 输入控件')
+    : fail('拖拽排除区存在', 'isDragBlocked 须排除 .w-strip / .set-mask / input');
+  hasToken(appSrc, 'onClickCapture') ? ok('捕获阶段吞掉拖动后的 click（全子元素）') : fail('onClickCapture 存在');
+  hasToken(appSrc, 'onTabClick') && hasToken(appSrc, 'clickAllowed')
+    ? ok('Tab 点击经 clickAllowed 守卫（拖动时不误切面板）')
+    : fail('Tab 点击守卫存在');
   const app = readTpl(f);
   const tabOrder = ['天气', '日历', '新闻'];
   const idxs = tabOrder.map((t) => app.indexOf(`>${t}</button>`));
   idxs.every((v, i) => v >= 0 && (i === 0 || v > idxs[i - 1]))
     ? ok('Tab 顺序 = 天气 → 日历 → 新闻')
     : fail('Tab 顺序 = 天气 → 日历 → 新闻', `位置：${idxs.join(', ')}`);
-  hasToken(app, '天气 · 日历 · 新闻') ? ok('顶栏标题文案「天气 · 日历 · 新闻」') : fail('顶栏标题文案「天气 · 日历 · 新闻」');
+  forbidToken(f, 'header-title', '顶栏无标题（用户确认标题无意义，2026-11-24 移除）');
+  const headerStart = app.indexOf('class="header"');
+  const tabsStart = app.indexOf('class="tabs"');
+  const headerEnd = app.indexOf('<!-- 面板容器 -->');
+  headerStart >= 0 && tabsStart > headerStart && headerEnd > tabsStart
+    ? ok('Tab 嵌入顶栏，不再单独占一行')
+    : fail('Tab 嵌入顶栏，不再单独占一行');
   // R2：底栏
   forbidToken(f, 'footer', 'App.vue 不含底栏 footer（R2）');
   forbidToken('src/style.css', 'footer', 'style.css 不含底栏 footer（R2）');
@@ -158,7 +181,7 @@ section('3. 天气面板契约');
     'stale', 'w-updated', 'w-grid', 'w-cell', 'fc-bar', 'seg', 'seg-btn', 'drag-tip',
     'w-strip', 'w-hr', 'wide', 'list-empty',
     // 城市搜索（391 城快速定位）
-    'city-search', 'search-input', 'search-panel', 'search-item', 'search-empty'];
+    'city-search', 'search-toggle', 'search-pop', 'search-input', 'search-panel', 'search-hint', 'search-item', 'search-empty'];
   for (const t of must) expectTplToken(f, t);
   const src = read(f);
   const tpl = readTpl(f);
@@ -185,6 +208,9 @@ section('3. 天气面板契约');
       ? ok('省市联动仍是两个 <select>（搜索为增量功能）')
       : fail('省市联动仍是两个 <select>（搜索为增量功能）', `.city-row 内有 ${selCount} 个 select`);
   }
+  hasToken(tpl, 'v-if="searchVisible"') && hasToken(tpl, 'search-toggle')
+    ? ok('城市搜索默认收起，点击放大镜才展开浮层')
+    : fail('城市搜索默认收起，点击放大镜才展开浮层', '模板须有 search-toggle 与 v-if="searchVisible"');
   // 搜索必须支持拼音首字母
   hasToken(read('src/data/cities.ts'), 'pinyinInitials')
     ? ok('城市搜索支持拼音首字母（pinyinInitials）')
@@ -318,7 +344,7 @@ section('7. 皮肤与设计令牌契约');
   const tokens = ['--text-primary', '--text-secondary', '--text-muted', '--accent', '--accent-soft',
     '--accent-ink', '--glass-blur', '--glass-blur-sm', '--glass-sat', '--glass-tint',
     '--glass-tint-strong', '--glass-tint-weak', '--glass-border', '--glass-border-weak',
-    '--glass-inner-hi', '--glass-shadow', '--glass-shadow-sm', '--line', '--divider', '--border',
+    '--glass-inner-hi', '--glass-shadow', '--glass-shadow-sm', '--line', '--divider', '--border', '--hairline',
     '--control-bg', '--control-bg-hover', '--switch-bg', '--radius-card', '--radius-cell',
     '--radius-control', '--bg1', '--bg2', '--bg-glow', '--festival'];
   for (const t of tokens) {

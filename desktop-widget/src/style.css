@@ -55,6 +55,9 @@
   --control-bg-hover: rgba(255, 255, 255, 0.68);
   --switch-bg: rgba(148, 163, 184, 0.5);
 
+  /* 细分隔线：随主题文字色自动适配明暗，比白色描边更可控 */
+  --hairline: color-mix(in srgb, var(--text-primary) 14%, transparent);
+
   /* 圆角 */
   --radius-card: 22px;
   --radius-cell: 12px;
@@ -176,13 +179,14 @@ html, body {
  * 窗口 transparent:false，.widget 用 --bg1/--bg2 绘制随天气切换的「天空壁纸」
  * （渐变 + 左上光源 + 光斑）。承载层用半透明填充叠出层次，不使用 backdrop-filter
  * ——壁纸本身平滑无细节，模糊无收益却使 GPU 占用涨约 3 倍（见 R8）。
- * 10px 内边距给 .app 投影留悬浮光晕空间。
+ * 面板铺满整个窗口：不再留 10px 外圈壁纸边距，窗口投影由系统 shadow:true 提供。
+ * 圆角处仍会透出底层渐变（仅四角小三角），不影响主体。
  */
 .widget {
   position: relative;
   width: 320px;
   height: 100vh;
-  padding: 10px;
+  padding: 0;
   display: flex;
   background:
     radial-gradient(ellipse 120% 80% at 12% 0%, var(--bg-glow, rgba(255,255,255,.5)) 0%, transparent 60%),
@@ -324,15 +328,11 @@ html, body {
   z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px 8px;
+  gap: 6px;
+  padding: 0 12px;
+  min-height: 42px;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
-}
-.header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.header-title {
-  font-size: 13px; font-weight: 600; color: var(--text-primary);
-  white-space: nowrap; letter-spacing: 0.3px;
 }
 .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
@@ -352,21 +352,25 @@ html, body {
   font-weight: 600;
 }
 
-/* 齿轮按钮（原型 .gear：圆形 + 玻璃底） */
+/* 齿轮按钮：默认透明，不抢视觉焦点；悬浮/键盘聚焦时才显出灰底 */
 .gear {
   width: 28px; height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--glass-border-weak);
-  background: var(--control-bg);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 15px;
   line-height: 1;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.gear:hover { background: var(--control-bg-hover); color: var(--accent); }
+.gear:hover, .gear:focus-visible {
+  background: var(--control-bg-hover);
+  border-color: var(--glass-border-weak);
+  color: var(--accent);
+}
 
 /* ===== 省市二级联动（对应原型 .city-row） ===== */
 .city-row {
@@ -461,19 +465,32 @@ html, body {
 .sel:focus { outline: none; border-color: var(--accent); }
 .sel option { color: #1f2937; background: #f7f9fc; }
 
+/* 主界面省市/年月下拉默认透明底 + 细描边：避免顶部亮带抢过温度焦点；悬浮/聚焦才出底 */
+.city-row .sel, .cal-head .sel {
+  background: transparent;
+  border-color: var(--hairline);
+}
+.city-row .sel:hover, .city-row .sel:focus,
+.cal-head .sel:hover, .cal-head .sel:focus {
+  background: var(--control-bg-hover);
+  border-color: var(--accent);
+}
+
 /* ===== Tab 栏（对应原型 .tabs） ===== */
 .tabs {
   position: relative;
   z-index: 2;
   display: flex;
-  border-bottom: 1px solid var(--line);
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
   flex-shrink: 0;
 }
 .tab {
   flex: 1;
   text-align: center;
   padding: 12px 0 10px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
@@ -490,8 +507,8 @@ html, body {
   position: absolute;
   left: 50%; bottom: -1px;
   transform: translateX(-50%);
-  width: 44px; height: 3px;
-  border-radius: 3px;
+  width: 18px; height: 2px;
+  border-radius: 2px;
   background: var(--accent);
 }
 
@@ -538,4 +555,15 @@ html, body {
   background: var(--glass-tint-strong);
   border: 1px solid var(--glass-border-weak);
   border-radius: var(--radius-cell);
+}
+
+/* 尊重系统「减少动态效果」：天气纹理与过渡不再自动播放 */
+@media (prefers-reduced-motion: reduce) {
+  .weather-anim-cloud,
+  .weather-anim-rain::before,
+  .weather-anim-rain::after,
+  .weather-anim-snow::before,
+  .weather-anim-stars::before { animation: none !important; }
+  .widget, .app, .tab, .gear, .search-toggle,
+  .seg-btn, .w-cell, .w-hr, .set-sheet { transition-duration: 0.01ms !important; }
 }

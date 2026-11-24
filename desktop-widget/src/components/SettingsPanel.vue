@@ -91,12 +91,7 @@ function close(e: Event) {
   <div class="set-mask" @click="close">
     <div class="set-sheet">
       <h3 class="set-title">桌面设置</h3>
-
-      <!-- 时间 -->
-      <div class="set-row">
-        <div class="lbl">时间<small>年月日星期显示</small></div>
-        <span class="set-time">{{ clockText }}</span>
-      </div>
+      <div class="set-time">{{ clockText }}</div>
 
       <!-- 日历显示农历 -->
       <div class="set-row">
@@ -218,7 +213,7 @@ function close(e: Event) {
 </template>
 
 <style scoped>
-/* ===== 设置弹窗：半透明遮罩 + 玻璃观感面板（对应原型 .mask/.sheet） ===== */
+/* ===== 设置弹窗：半透明遮罩 + 不透明面板（避免背后内容透出干扰阅读） ===== */
 .set-mask {
   position: absolute; inset: 0;
   z-index: 100;
@@ -231,10 +226,10 @@ function close(e: Event) {
   width: 272px;
   max-height: 94%;
   overflow-y: auto;
-  padding: 13px 14px 11px;
+  padding: 11px 14px 10px;
   border-radius: 18px;
   color: var(--text-primary);
-  background: var(--glass-tint-strong);
+  background: var(--bg1);
   border: 1px solid var(--glass-border);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.32), inset 0 1px 0 var(--glass-inner-hi);
   scrollbar-width: thin;
@@ -245,9 +240,13 @@ function close(e: Event) {
 
 .set-title {
   font-size: 16px; font-weight: 600; color: var(--text-primary);
-  margin: 0 0 3px; text-align: center;
+  margin: 0 0 1px; text-align: center;
 }
-.set-time { font-size: 12px; color: var(--accent); font-weight: 600; flex: none; }
+.set-time {
+  font-size: 11px; color: var(--accent); font-weight: 600;
+  text-align: center; margin: 0 0 6px;
+  font-variant-numeric: tabular-nums;
+}
 
 .set-group-title {
   font-size: 11px; font-weight: 700; color: var(--text-muted);
@@ -258,7 +257,7 @@ function close(e: Event) {
 /* ===== 原型行式设置项 ===== */
 .set-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 0;
+  padding: 5px 0;
   border-bottom: 1px solid var(--divider);
   font-size: 13px; color: var(--text-primary); gap: 8px;
 }
@@ -313,7 +312,7 @@ function close(e: Event) {
 .more-toggle {
   display: flex; align-items: center; justify-content: space-between;
   font-size: 12px; color: var(--accent); font-weight: 600;
-  padding: 10px 0 2px; cursor: pointer; user-select: none;
+  padding: 6px 0 0; cursor: pointer; user-select: none;
 }
 .more-toggle:hover { opacity: 0.8; }
 .more-body { animation: fade-in 0.2s ease; }
@@ -354,7 +353,7 @@ function close(e: Event) {
 
 /* ===== 完成按钮 ===== */
 .done-btn {
-  width: 100%; height: 38px; margin-top: 12px;
+  width: 100%; height: 34px; margin-top: 6px;
   border-radius: 12px;
   border: 1px solid var(--accent);
   background: var(--accent);

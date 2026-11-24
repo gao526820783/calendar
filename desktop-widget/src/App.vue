@@ -68,6 +68,72 @@ function switchTab(tab: 'weather' | 'calendar' | 'news') {
   activeTab.value = tab;
 }
 
+// 窗口拖拽：整个窗口按住空白处都能拖，不用 data-tauri-drag-region。
+// Tauri 2 中该属性直接标在按钮上会吞掉 click（Tab 点了没反应），标在容器上又盖不住按钮。
+// 改用官方「手动拖拽」：按下后位移超过阈值才 startDragging，纯点击放行 click。
+// 排除：预报条（自己横向拖）、设置弹层（自己滚动/点击）、输入控件（原生选字/下拉）。
+let dragOrigin: { x: number; y: number } | null = null;
+let dragActive = false;
+let swallowClick = false;
+let startDragFn: (() => Promise<void>) | null = null;
+
+function isDragBlocked(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || typeof el.closest !== 'function') return false;
+  if (el.closest('.w-strip')) return true;                  // 预报条自己横向拖动
+  if (el.closest('.set-mask')) return true;                 // 设置弹层：点击关闭 + 面板内滚动
+  if (el.closest('input, textarea, select')) return true;   // 原生输入 / 下拉
+  return false;
+}
+
+function onDragDown(e: PointerEvent) {
+  swallowClick = false;
+  if (e.button !== 0) return; // 仅左键
+  if (isDragBlocked(e.target)) { dragOrigin = null; return; }
+  dragOrigin = { x: e.clientX, y: e.clientY };
+  dragActive = false;
+}
+async function onDragMove(e: PointerEvent) {
+  if (!dragOrigin || dragActive) return;
+  if (Math.hypot(e.clientX - dragOrigin.x, e.clientY - dragOrigin.y) < 4) return;
+  dragActive = true;
+  swallowClick = true; // 拖动后的 click 不应切换 Tab / 打开设置
+  try {
+    if (!startDragFn) {
+      startDragFn = async () => {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        await getCurrentWindow().startDragging();
+      };
+    }
+    await startDragFn();
+  } catch {
+    // 纯浏览器预览环境没有 Tauri API，忽略
+  }
+}
+function onDragUp() {
+  dragOrigin = null;
+}
+// 捕获阶段统一吞掉拖动后的那次 click，覆盖所有子元素（不只 Tab / 齿轮）。
+function onClickCapture(e: MouseEvent) {
+  if (!swallowClick) return;
+  e.stopPropagation();
+  e.preventDefault();
+  swallowClick = false;
+}
+function clickAllowed(): boolean {
+  if (!swallowClick) return true;
+  swallowClick = false;
+  return false;
+}
+function onTabClick(tab: 'weather' | 'calendar' | 'news') {
+  if (!clickAllowed()) return;
+  switchTab(tab);
+}
+function onGearClick() {
+  if (!clickAllowed()) return;
+  showSettings.value = true;
+}
+
 onMounted(async () => {
   await settings.load();
   calendar.init();
@@ -105,7 +171,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="widget" :data-weather="themeName" :data-festival="festivalStyle" :style="accentStyle">
+  <div
+    class="widget"
+    :data-weather="themeName"
+    :data-festival="festivalStyle"
+    :style="accentStyle"
+    @pointerdown="onDragDown"
+    @pointermove="onDragMove"
+    @pointerup="onDragUp"
+    @pointercancel="onDragUp"
+    @click.capture="onClickCapture"
+  >
     <!-- 雨丝/雪花/星空 —— 叠在天空壁纸之上的动态纹理（放在 .app 之外，作为面板半透明填充下的背景） -->
     <div class="weather-anim" aria-hidden="true">
       <div class="weather-anim-rain"></div>
@@ -126,22 +202,17 @@ onBeforeUnmount(() => {
       <!-- 节日装饰（右下角大图标） -->
       <div class="deco" aria-hidden="true">{{ decoEmoji }}</div>
 
-      <!-- 顶栏（可拖拽区域） -->
-      <div class="header" data-tauri-drag-region>
-        <div class="header-left" data-tauri-drag-region>
-          <span class="header-title" data-tauri-drag-region>天气 · 日历 · 新闻</span>
+      <!-- 顶栏 = Tab + 设置入口。整窗拖拽监听在根 .widget 上，按钮 click 不受影响 -->
+      <div class="header">
+        <div class="tabs">
+          <button class="tab" :class="{ active: activeTab === 'weather' }" @click="onTabClick('weather')">天气</button>
+          <button class="tab" :class="{ active: activeTab === 'calendar' }" @click="onTabClick('calendar')">日历</button>
+          <button class="tab" :class="{ active: activeTab === 'news' }" @click="onTabClick('news')">新闻</button>
         </div>
-        <div class="header-actions" data-tauri-drag-region>
+        <div class="header-actions">
           <span v-if="festivalName" class="festival-badge">{{ festivalName }}</span>
-          <button class="gear" title="设置" @click="showSettings = true">⚙</button>
+          <button class="gear" title="设置" @click="onGearClick">⚙</button>
         </div>
-      </div>
-
-      <!-- Tab 栏 -->
-      <div class="tabs">
-        <button class="tab" :class="{ active: activeTab === 'weather' }" @click="switchTab('weather')">天气</button>
-        <button class="tab" :class="{ active: activeTab === 'calendar' }" @click="switchTab('calendar')">日历</button>
-        <button class="tab" :class="{ active: activeTab === 'news' }" @click="switchTab('news')">新闻</button>
       </div>
 
       <!-- 面板容器 -->

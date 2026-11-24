@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, defineComponent, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, h, defineComponent, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useWeatherStore, windDirText, windLevel } from '../stores/weather';
 import { useSettingsStore, PROVINCES, provinceOf } from '../stores/settings';
 import { CITY_SEARCH_INDEX } from '../data/cities';
@@ -49,6 +49,19 @@ async function applyCity(city: string) {
 // 输入「西双」「xsbn」「西双版纳」都能定位到目标城市。
 const keyword = ref<string>('');
 const searchOpen = ref<boolean>(false);
+// 搜索框默认收起，仅在点击城市右侧的搜索图标时以浮层展开
+const searchVisible = ref<boolean>(false);
+const searchInput = ref<HTMLInputElement | null>(null);
+
+function toggleSearch() {
+  searchVisible.value = !searchVisible.value;
+  if (searchVisible.value) {
+    nextTick(() => searchInput.value?.focus());
+  } else {
+    keyword.value = '';
+    searchOpen.value = false;
+  }
+}
 
 const matches = computed(() => {
   const q = keyword.value.trim().toLowerCase();
@@ -65,6 +78,7 @@ async function chooseCity(name: string) {
   if (p !== province.value) province.value = p;
   keyword.value = '';
   searchOpen.value = false;
+  searchVisible.value = false;
   await applyCity(name);
 }
 
@@ -74,6 +88,8 @@ function onSearchInput() {
 
 function closeSearch() {
   searchOpen.value = false;
+  searchVisible.value = false;
+  keyword.value = '';
 }
 
 // 点击面板外部时收起搜索结果
@@ -198,31 +214,45 @@ const { dragging } = useDragScroll(stripRef);
       >
         <option v-for="c in cities" :key="c" :value="c">{{ c }}</option>
       </select>
-    </div>
-
-    <!-- 城市搜索：391 城逐项翻找成本高，支持中文名 / 拼音首字母 -->
-    <div class="city-search" ref="searchWrap">
-      <input
-        class="search-input"
-        type="search"
-        v-model="keyword"
-        placeholder="搜索城市：西双 / xsbn"
-        title="搜索城市（支持中文名或拼音首字母）"
-        @input="onSearchInput"
-        @focus="onSearchInput"
-        @keydown.escape="closeSearch"
-      />
-      <div v-if="searchOpen" class="search-panel">
-        <div v-if="matches.length === 0" class="search-empty">未找到匹配的城市</div>
+      <!-- 城市搜索默认收起，点击放大镜才展开浮层（不挤压下方内容） -->
+      <div class="city-search" ref="searchWrap">
         <button
-          v-for="m in matches"
-          :key="m.province + m.name"
-          class="search-item"
-          @click="chooseCity(m.name)"
+          class="search-toggle"
+          :class="{ on: searchVisible }"
+          title="搜索城市（支持中文名或拼音首字母）"
+          @click="toggleSearch"
         >
-          <span class="sn">{{ m.name }}</span>
-          <span class="sp">{{ m.province }}</span>
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+            <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
         </button>
+        <div v-if="searchVisible" class="search-pop">
+          <input
+            ref="searchInput"
+            class="search-input"
+            type="search"
+            v-model="keyword"
+            placeholder="搜索城市：西双 / xsbn"
+            title="搜索城市（支持中文名或拼音首字母）"
+            @input="onSearchInput"
+            @focus="onSearchInput"
+            @keydown.escape="closeSearch"
+          />
+          <div v-if="searchOpen" class="search-panel">
+            <div v-if="matches.length === 0" class="search-empty">未找到匹配的城市</div>
+            <button
+              v-for="m in matches"
+              :key="m.province + m.name"
+              class="search-item"
+              @click="chooseCity(m.name)"
+            >
+              <span class="sn">{{ m.name }}</span>
+              <span class="sp">{{ m.province }}</span>
+            </button>
+          </div>
+          <div v-else class="search-hint">输入城市名或拼音首字母</div>
+        </div>
       </div>
     </div>
 
@@ -277,69 +307,146 @@ const { dragging } = useDragScroll(stripRef);
 </template>
 
 <style scoped>
+/* 当前天气 + 指标并排成一条信息带：左温度、右指标，靠细线分组而不是卡片堆叠 */
 .weather-panel {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
 }
+.city-row, .fc-bar, .w-strip { grid-column: 1 / -1; }
 
-/* ===== 当前天气：居中大图标 + 大号温度 ===== */
-.w-main { text-align: center; padding: 0 0 4px; }
+/* 搜索默认收起：城市下拉右侧只留放大镜，点击后浮层覆盖内容而不挤压布局 */
+.city-row { position: relative; margin-bottom: 10px; }
+.city-search { position: relative; flex: 0 0 32px; margin-bottom: 0; }
+.search-toggle {
+  width: 32px; height: 31px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.search-toggle:hover { background: var(--control-bg-hover); border-color: var(--accent); color: var(--accent); }
+.search-toggle.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.search-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 244px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  /* 用不透明主题底色，避免浮层透出后面的指标文字影响阅读 */
+  background: var(--bg1);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-inner-hi);
+}
+.search-input { width: 100%; }
+.search-panel {
+  position: static;
+  margin-top: 5px;
+  max-height: 176px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  /* 长列表必须能看出还能滚，否则用户以为只有眼前几条 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 130, 145, 0.55) transparent;
+}
+.search-panel::-webkit-scrollbar { width: 6px; }
+.search-panel::-webkit-scrollbar-track { background: transparent; }
+.search-panel::-webkit-scrollbar-thumb { background: rgba(120, 130, 145, 0.55); border-radius: 6px; }
+.search-panel::-webkit-scrollbar-thumb:hover { background: rgba(120, 130, 145, 0.75); }
+:deep(.widget[data-weather="night"]) .search-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); }
+.search-hint { font-size: 10px; color: var(--text-secondary); padding: 4px 2px 0; }
+
+/* ===== 当前天气（左半列） ===== */
+.w-main {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  column-gap: 7px;
+  row-gap: 2px;
+  padding-left: 2px;
+  min-width: 0;
+}
 .w-icon {
-  font-size: 38px;
+  font-size: 28px;
   line-height: 1;
-  filter: drop-shadow(0 6px 14px rgba(15, 23, 42, 0.18));
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.18));
 }
 .w-temp {
-  font-size: 32px;
+  flex: 1;
+  font-size: 30px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.1;
-  margin-top: 2px;
+  line-height: 1.05;
   letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
 }
-.w-temp small { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-left: 3px; }
+.w-temp small { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-left: 2px; letter-spacing: 0; }
 .w-desc {
+  flex: 0 0 100%;
   color: var(--text-secondary);
-  font-size: 13px;
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.stale { opacity: 0.65; font-size: 11px; }
-.w-updated {
   font-size: 11px;
-  color: var(--text-muted);
-  padding: 1px 7px;
+  line-height: 1.2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+}
+.stale { opacity: 0.65; font-size: 9px; }
+.w-updated {
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 0 4px;
   border-radius: 999px;
   background: var(--glass-tint-weak);
   border: 1px solid var(--glass-border-weak);
 }
 
-/* ===== 四格指标 ===== */
+/* ===== 四格指标（右半列 2×2 文本行，顺序仍为 湿度 → 风向 → 风力 → 体感） ===== */
 .w-grid {
+  grid-column: 2;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px;
+  row-gap: 2px;
+  align-self: stretch;
+  align-content: center;
+  padding-left: 14px;
+  border-left: 1px solid var(--hairline);
 }
 .w-cell {
-  background: var(--glass-tint-strong);
-  border: 1px solid var(--glass-border-weak);
-  border-radius: var(--radius-cell);
-  padding: 6px 4px;
-  text-align: center;
-  box-shadow: var(--glass-shadow-sm);
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 0 6px;
+  border-bottom: 1px solid var(--hairline);
 }
-.w-cell .v { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.w-cell .k { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.w-cell .v {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.w-cell .k { font-size: 10px; color: var(--text-secondary); white-space: nowrap; }
 
 /* ===== 预报区标题行 ===== */
 .fc-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 6px 0 5px;
+  margin: 12px 0 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
 }
 .seg {
   display: inline-flex;
@@ -377,7 +484,7 @@ const { dragging } = useDragScroll(stripRef);
   gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
   scrollbar-width: none;
   -ms-overflow-style: none;
   cursor: grab;
@@ -389,24 +496,30 @@ const { dragging } = useDragScroll(stripRef);
 .w-strip.dragging { cursor: grabbing; }
 
 .w-hr {
-  min-width: 54px;
+  min-width: 56px;
   text-align: center;
-  background: var(--glass-tint-strong);
-  border: 1px solid var(--glass-border-weak);
-  border-radius: var(--radius-cell);
-  padding: 4px 4px;
+  background: transparent;
+  border-right: 1px solid var(--hairline);
+  border-radius: 0;
+  padding: 6px 8px;
   flex-shrink: 0;
+  transition: background 0.18s ease;
 }
+.w-hr:hover { background: var(--glass-tint-weak); border-radius: 8px; }
 .w-hr .t { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
-.w-hr .i { font-size: 17px; margin: 3px 0; }
-.w-hr .d { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.w-hr .i { font-size: 19px; margin: 3px 0; }
+.w-hr .d {
+  font-size: 12px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
 .w-hr .d .hi { color: var(--text-primary); }
 .w-hr .d .lo { color: var(--text-muted); font-weight: 400; margin-left: 4px; }
 /* 双温度（未来 7 天）需要更宽一点 */
 .w-hr.wide { min-width: 62px; }
+.w-hr:last-of-type { border-right: none; }
 .w-hr .p {
-  font-size: 9px;
-  color: #5b9bd5;
+  font-size: 10px;
+  color: var(--accent);
   margin-top: 2px;
   white-space: nowrap;
 }

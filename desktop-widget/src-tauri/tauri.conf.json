@@ -15,7 +15,7 @@
         "label": "main",
         "title": "天气 · 日历 · 新闻",
         "width": 320,
-        "height": 480,
+        "height": 335,
         "resizable": false,
         "decorations": false,
         "visible": false,
